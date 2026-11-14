@@ -94,10 +94,16 @@ function value(row,names){
  const key=findKey(row,names);
  return key ? String(row[key]??'').trim() : '';
 }
-    function isChurned(row){  const v=value(row,['churn','exited','ischurned','churnstatus']).trim().toLowerCase();   if(['yes','true','churned','left'].includes(v)) return true;   const n=Number(v);  return v!=='' && Number.isFinite(n) && n===1; }(row){  const v=value(row,['churn','exited','ischurned','churnstatus']).trim().toLowerCase();   if(['yes','true','churned','left'].includes(v)) return true;   const n=Number(v);  return v!=='' && Number.isFinite(n) && n===1; }(row){  const v=value(row,['churn','exited','ischurned','churnstatus']).trim().toLowerCase();   if(['yes','true','churned','left'].includes(v)) return true;   const n=Number(v);  return v!=='' && Number.isFinite(n) && n===1; }(row){  const v=value(row,['churn','exited','ischurned','churnstatus']).trim().toLowerCase();   if(['yes','true','churned','left'].includes(v)) return true;   const n=Number(v);  return v!=='' && Number.isFinite(n) && n===1; }(row){
- const v=value(row,['churn','exited','ischurned','churnstatus']).toLowerCase();
- return ['1','yes','true','churned','left'].includes(v);
+   
+function isChurned(row){
+ const v=value(row,['churn','exited','ischurned','churnstatus']).trim().toLowerCase();
+
+ if(['yes','true','churned','left'].includes(v)) return true;
+
+ const n=Number(v);
+ return v!=='' && Number.isFinite(n) && n===1;
 }
+
 function ageGroup(row){
  const age=Number(value(row,['age','customerage']));
  if(!Number.isFinite(age)||age<=0)return 'Unknown';
