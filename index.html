@@ -1,0 +1,222 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Customer Churn Analysis</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172554}
+header{background:#102b50;color:white;padding:25px 5%}
+header h1{margin:0 0 8px}
+header p{margin:0;color:#cbd5e1}
+main{max-width:1250px;margin:25px auto;padding:0 18px}
+.panel{background:white;padding:20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 10px #0000000c}
+.upload{border:2px dashed #94a3b8;text-align:center}
+input,select{padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:white}
+button{padding:11px 18px;border:0;border-radius:7px;background:#1d4ed8;color:white;cursor:pointer}
+button:hover{background:#1e40af}
+.filters{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.filters label{font-size:13px;font-weight:bold}
+.filters select{display:block;min-width:145px;margin-top:6px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:20px}
+.card{background:white;padding:20px;border-radius:12px;box-shadow:0 2px 10px #0000000c}
+.card p{color:#64748b;margin:0 0 12px;font-size:14px}
+.card h2{font-size:27px;margin:0;color:#1d4ed8}
+.charts{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.chartbox{background:white;border-radius:12px;padding:20px;min-height:320px}
+.chartbox h3{margin-top:0}
+.chartbox canvas{max-height:250px}
+.note{font-size:13px;color:#64748b}
+#error{color:#b91c1c}
+@media(max-width:750px){.cards{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
+@media(max-width:430px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Bank Customer Churn Analysis</h1>
+<p>Customer Retention | Churn Analytics | Business Insights</p>
+</header>
+
+<main>
+<section class="panel upload">
+<h2>Upload Customer Dataset</h2>
+<p>Select your cleaned customer data in CSV format.</p>
+<input type="file" id="fileInput" accept=".csv">
+<p class="note">Your data is processed in your browser and is not uploaded to GitHub.</p>
+<p id="status">No dataset loaded yet.</p>
+<p id="error"></p>
+</section>
+
+<section class="panel">
+<h2>Dashboard Filters</h2>
+<div class="filters">
+<label>Gender<select id="genderFilter"><option value="">All genders</option></select></label>
+<label>Geography<select id="geoFilter"><option value="">All countries</option></select></label>
+<label>Age Group<select id="ageFilter"><option value="">All age groups</option></select></label>
+<button id="resetBtn">Reset Filters</button>
+</div>
+</section>
+
+<section class="cards">
+<div class="card"><p>Total Customers</p><h2 id="total">0</h2></div>
+<div class="card"><p>Churned Customers</p><h2 id="churned">0</h2></div>
+<div class="card"><p>Retained Customers</p><h2 id="retained">0</h2></div>
+<div class="card"><p>Churn Rate</p><h2 id="rate">0%</h2></div>
+</section>
+
+<section class="charts">
+<div class="chartbox"><h3>Churn Distribution</h3><canvas id="churnChart"></canvas></div>
+<div class="chartbox"><h3>Churn by Gender</h3><canvas id="genderChart"></canvas></div>
+<div class="chartbox"><h3>Churn by Geography</h3><canvas id="geoChart"></canvas></div>
+<div class="chartbox"><h3>Churn by Age Group</h3><canvas id="ageChart"></canvas></div>
+</section>
+
+<section class="panel">
+<h2>Business Insight</h2>
+<p id="insight">Upload your customer CSV file to see churn insights.</p>
+<p class="note">Churn rate = Churned customers ÷ Total customers × 100.</p>
+</section>
+</main>
+
+<script>
+let allRows=[];
+let charts={};
+
+function findKey(row, names){
+ const keys=Object.keys(row);
+ return keys.find(k=>names.includes(k.toLowerCase().replace(/[^a-z0-9]/g,'')));
+}
+function value(row,names){
+ const key=findKey(row,names);
+ return key ? String(row[key]??'').trim() : '';
+}
+function isChurned(row){
+ const v=value(row,['churn','exited','ischurned','churnstatus']).toLowerCase();
+ return ['1','yes','true','churned','left'].includes(v);
+}
+function ageGroup(row){
+ const age=Number(value(row,['age','customerage']));
+ if(!Number.isFinite(age)||age<=0)return 'Unknown';
+ if(age<30)return '18–29';
+ if(age<40)return '30–39';
+ if(age<50)return '40–49';
+ if(age<60)return '50–59';
+ return '60+';
+}
+function parseCSV(text){
+ const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());
+ if(lines.length<2)throw Error('The CSV file has no customer records.');
+ function split(line){
+  let result=[],field='',quoted=false;
+  for(let i=0;i<line.length;i++){
+   const c=line[i];
+   if(c==='"'&&quoted&&line[i+1]==='"'){field+='"';i++}
+   else if(c==='"')quoted=!quoted;
+   else if(c===','&&!quoted){result.push(field);field=''}
+   else field+=c;
+  }
+  result.push(field);return result;
+ }
+ const headers=split(lines[0]).map(x=>x.trim());
+ return lines.slice(1).map(line=>{
+  const cells=split(line),obj={};
+  headers.forEach((h,i)=>obj[h]=cells[i]??'');
+  return obj;
+ }).filter(row=>Object.values(row).some(v=>String(v).trim()!==''));
+}
+function options(id,values,first){
+ const el=document.getElementById(id),old=el.value;
+ el.innerHTML='<option value="">'+first+'</option>';
+ [...new Set(values)].filter(x=>x&&x!=='Unknown').sort().forEach(v=>{
+  const op=document.createElement('option');op.value=v;op.textContent=v;el.appendChild(op);
+ });
+ if([...el.options].some(o=>o.value===old))el.value=old;
+}
+function currentRows(){
+ return allRows.filter(r=>{
+  const g=value(r,['gender','sex'])||'Unknown';
+  const geo=value(r,['geography','country','region'])||'Unknown';
+  const a=ageGroup(r);
+  return (!genderFilter.value||g===genderFilter.value)&&
+   (!geoFilter.value||geo===geoFilter.value)&&
+   (!ageFilter.value||a===ageFilter.value);
+ });
+}
+function drawChart(id,type,labels,data,label){
+ if(charts[id])charts[id].destroy();
+ charts[id]=new Chart(document.getElementById(id),{
+  type,data:{labels,datasets:[{label,data,backgroundColor:[
+   '#2563eb','#0d9488','#f59e0b','#8b5cf6','#ef4444','#64748b'
+  ],borderWidth:1}]},
+  options:{responsive:true,maintainAspectRatio:true,
+   plugins:{legend:{display:type==='doughnut'||type==='pie'}}}
+ });
+}
+function update(){
+ const rows=currentRows(),lost=rows.filter(isChurned).length;
+ const kept=rows.length-lost,rate=rows.length?lost/rows.length*100:0;
+ document.getElementById('total').textContent=rows.length.toLocaleString();
+ document.getElementById('churned').textContent=lost.toLocaleString();
+ document.getElementById('retained').textContent=kept.toLocaleString();
+ document.getElementById('rate').textContent=rate.toFixed(1)+'%';
+
+ drawChart('churnChart','doughnut',['Churned','Retained'],[lost,kept],'Customers');
+
+ function grouped(nameFn){
+  const groups={};
+  rows.forEach(r=>{
+   const name=nameFn(r);
+   if(!groups[name])groups[name]=0;
+   if(isChurned(r))groups[name]++;
+  });
+  return groups;
+ }
+ const genders=grouped(r=>value(r,['gender','sex'])||'Unknown');
+ drawChart('genderChart','bar',Object.keys(genders),Object.values(genders),'Churned');
+
+ const geos=grouped(r=>value(r,['geography','country','region'])||'Unknown');
+ drawChart('geoChart','bar',Object.keys(geos),Object.values(geos),'Churned');
+
+ const ages=grouped(ageGroup);
+ const ageOrder=['18–29','30–39','40–49','50–59','60+','Unknown'];
+ const ageLabels=ageOrder.filter(a=>a in ages);
+ drawChart('ageChart','bar',ageLabels,ageLabels.map(a=>ages[a]),'Churned');
+
+ const insight=rows.length
+ ? 'Among '+rows.length.toLocaleString()+' filtered customers, '+lost.toLocaleString()+
+ ' have churned. The churn rate is '+rate.toFixed(1)+'%.'
+ : 'No customers match the selected filters.';
+ document.getElementById('insight').textContent=insight;
+}
+const genderFilter=document.getElementById('genderFilter');
+const geoFilter=document.getElementById('geoFilter');
+const ageFilter=document.getElementById('ageFilter');
+
+document.getElementById('fileInput').addEventListener('change',async e=>{
+ const file=e.target.files[0];if(!file)return;
+ try{
+  const rows=parseCSV(await file.text());
+  if(!rows.length)throw Error('No usable customer rows found.');
+  const sample=rows[0];
+  if(!findKey(sample,['churn','exited','ischurned','churnstatus']))
+   throw Error('Could not find a Churn or Exited column. Please check your CSV headers.');
+  allRows=rows;
+  options('genderFilter',rows.map(r=>value(r,['gender','sex'])),'All genders');
+  options('geoFilter',rows.map(r=>value(r,['geography','country','region'])),'All countries');
+  options('ageFilter',rows.map(ageGroup),'All age groups');
+  document.getElementById('status').textContent=rows.length+' customer records loaded successfully.';
+  document.getElementById('error').textContent='';
+  update();
+ }catch(err){document.getElementById('error').textContent=err.message;}
+});
+[genderFilter,geoFilter,ageFilter].forEach(el=>el.addEventListener('change',update));
+document.getElementById('resetBtn').addEventListener('click',()=>{
+ genderFilter.value='';geoFilter.value='';ageFilter.value='';update();
+});
+</script>
+</body>
+</html>
